@@ -31,3 +31,25 @@ During deployment on a server,settings for static file has to be updated.
 ## User Manual
 User manual for creating forms has been uploaded on google drive
 https://drive.google.com/open?id=14l47Bwt-G7lLZUSA8ZOGMsZuNJ7QYmM9nHz2xLlAVFU
+
+
+### About the project authors
+
+#### Shivam Gupta  
+B.Tech undergraduate  
+Computer Science & Engineering  
+Indian Institute of Technology  
+Guwahati, India  
+
+shivamgupta2203@gmail.com  
+www.linkedin.com/in/sshivamgupta
+### About the project author
+
+#### Shubham Singhal  
+B.Tech undergraduate  
+Computer Science & Engineering  
+Indian Institute of Technology  
+Guwahati, India  
+
+ssinghal1968@gmail.com
+www.linkedin.com/in/shubz1998
