@@ -43,7 +43,6 @@ Guwahati, India
 
 shivamgupta2203@gmail.com  
 www.linkedin.com/in/sshivamgupta
-### About the project author
 
 #### Shubham Singhal  
 B.Tech undergraduate  
