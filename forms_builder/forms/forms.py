@@ -130,14 +130,15 @@ class FormForForm(forms.ModelForm):
 
     class Meta:
         model = FormEntry
-        exclude = ("form", "entry_time")
+        exclude = ("form", "entry_time", "postedbyusername")
 
-    def __init__(self, form, context, *args, **kwargs):
+    def __init__(self, usershubz, form, context, *args, **kwargs):
         """
         Dynamically add each of the form fields for the given form model
         instance and its related field model instances.
         """
         self.form = form
+        self.postedbyusername = usershubz
         self.form_fields = form.fields.visible()
         initial = kwargs.pop("initial", {})
         # If a FormEntry instance is given to edit, stores it's field
@@ -217,6 +218,7 @@ class FormForForm(forms.ModelForm):
         entry = super(FormForForm, self).save(commit=False)
         entry.form = self.form
         entry.entry_time = now()
+        entry.postedbyusername = self.postedbyusername
         entry.save()
         entry_fields = entry.fields.values_list("field_id", flat=True)
         new_entry_fields = []
@@ -273,8 +275,8 @@ class EntriesForm(forms.Form):
         self.formentry_model = formentry_model
         self.fieldentry_model = fieldentry_model
         self.form_fields = form.fields.all()
-        self.entry_time_name = str(self.formentry_model._meta.get_field(
-            "entry_time").verbose_name)
+        self.entry_time_name = str(self.formentry_model._meta.get_field("entry_time").verbose_name)
+        self.postedbyusername = str(self.formentry_model._meta.get_field("postedbyusername").verbose_name)
         super(EntriesForm, self).__init__(*args, **kwargs)
         for field in self.form_fields:
             field_key = "field_%s" % field.id
@@ -316,6 +318,12 @@ class EntriesForm(forms.Form):
         # Add ``FormEntry.entry_time`` as a field.
         field_key = "field_0"
         label = self.formentry_model._meta.get_field("entry_time").verbose_name
+
+        # # Add ``FormEntry.entry_time`` as a field.
+        # field_key = "field_9"
+        # label = self.formentry_model._meta.get_field("postedbyusername").verbose_name
+
+
         self.fields["%s_export" % field_key] = forms.BooleanField(
             initial=True, label=label, required=False)
         self.fields["%s_filter" % field_key] = date_filter_field
@@ -354,6 +362,8 @@ class EntriesForm(forms.Form):
                   if self.posted_data("field_%s_export" % f.id)]
         if self.posted_data("field_0_export"):
             fields.append(self.entry_time_name)
+        if self.posted_data("field_500_export"):
+            fields.append(self.postedbyusername)
         return fields
 
     def rows(self, csv=False):
@@ -377,20 +387,21 @@ class EntriesForm(forms.Form):
                     date_field_ids.append(field.id)
         num_columns = len(field_indexes)
         include_entry_time = self.posted_data("field_0_export")
+        include_postedbyusername = self.posted_data("field_500_export")
         if include_entry_time:
+            num_columns += 1
+        if include_postedbyusername:
             num_columns += 1
 
         # Get the field entries for the given form and filter by entry_time
         # if specified.
         model = self.fieldentry_model
-        field_entries = model.objects.filter(entry__form=self.form
-                                             ).order_by("-entry__id").select_related("entry")
+        field_entries = model.objects.filter(entry__form=self.form).order_by("-entry__id").select_related("entry")
         if self.posted_data("field_0_filter") == FILTER_CHOICE_BETWEEN:
             time_from = self.posted_data("field_0_from")
             time_to = self.posted_data("field_0_to")
             if time_from and time_to:
-                field_entries = field_entries.filter(
-                    entry__entry_time__range=(time_from, time_to))
+                field_entries = field_entries.filter(entry__entry_time__range=(time_from, time_to))
 
         # Loop through each field value ordered by entry, building up each
         # entry as a row. Use the ``valid_row`` flag for marking a row as
@@ -408,8 +419,10 @@ class EntriesForm(forms.Form):
                 current_entry = field_entry.entry_id
                 current_row = [""] * num_columns
                 valid_row = True
+                if include_postedbyusername:
+                    current_row[-1] = field_entry.entry.postedbyusername
                 if include_entry_time:
-                    current_row[-1] = field_entry.entry.entry_time
+                    current_row[-2] = field_entry.entry.entry_time
             field_value = field_entry.value or ""
             # Check for filter.
             field_id = field_entry.field_id
@@ -441,7 +454,7 @@ class EntriesForm(forms.Form):
                     valid_row = False
             # Create download URL for file fields.
             if field_entry.value and field_id in file_field_ids:
-                url = reverse("admin:form_file", args=(field_entry.id,))
+                url = reverse("forms:downloadfile", args=(field_entry.id,))
                 field_value = self.request.build_absolute_uri(url)
                 if not csv:
                     parts = (field_value, split(field_entry.value)[1])
@@ -471,7 +484,9 @@ class LoginForm(forms.Form):
             raise ValidationError(_('Invalid Login Server'), code='invalid')
         return login_server
 
+
 from django.contrib.admin.widgets import AdminDateWidget
+
 
 class CreateForm(forms.Form):
     # class Meta:
@@ -480,14 +495,44 @@ class CreateForm(forms.Form):
     #     }
     title = forms.CharField(required=True, label='title')
     login_required = forms.BooleanField(required=False)
-    publish_date = forms.DateTimeField(help_text=_("With published selected, won't be shown until this time"),
-                                       required=False,widget= AdminDateWidget)
-    expiry_date = forms.DateTimeField(help_text=_("With published selected, won't be shown after this time"),
-                                      required=False, widget= AdminDateWidget)
-
+    inputformats = ['%Y-%m-%d',  # '2006-10-25'
+                    '%Y-%m-%d',  # '2006-10-25 14:30'
+                    '%Y-%m-%d',  # '2006-10-25'
+                    '%d-%m-%Y',  # '2006-10-25'
+                    '%m/%d/%Y',  # '10/25/2006 14:30:59'
+                    '%m/%d/%Y',  # '10/25/2006 14:30'
+                    '%m/%d/%Y',  # '10/25/2006'
+                    '%m/%d/%y',  # '10/25/06 14:30:59'
+                    '%m/%d/%y',  # '10/25/06 14:30'
+                    '%m/%d/%y']
+    publish_date = forms.DateField(input_formats=inputformats,
+                                   help_text=_("With published selected, won't be shown until this time"),
+                                   required=False)
+    expiry_date = forms.DateField(input_formats=inputformats,
+                                  help_text=_("With published selected, won't be shown after this time"),
+                                  required=False)
     intro = forms.CharField(required=True, label='intro')
     response = forms.CharField(required=True, label='response')
-    no_of_fields = forms.IntegerField(required=True,label='no_of_fields')
+    no_of_fields = forms.IntegerField(required=True, label='no_of_fields', min_value=1)
+
+    class Meta:
+        widgets = {
+            'title': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'intro': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'response': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'publish_date': forms.DateInput(attrs={
+                'class': 'datepicker'
+            }),
+            'expiry_date': forms.DateInput(attrs={
+                'class': 'datepicker'
+            })
+        }
 
 
 class CreateField(forms.Form):
@@ -496,12 +541,28 @@ class CreateField(forms.Form):
     field_type = forms.ChoiceField(required=True, choices=fields.NAMES)
     # for choices field
     choices = forms.CharField(required=False,
-                                help_text="Comma separated options where applicable. If an option "
-                                         "itself contains commas, surround the option starting with the %s"
-                                         "character and ending with the %s character." %
-                                         (settings.CHOICES_QUOTE, settings.CHOICES_UNQUOTE))
+                              help_text="Comma separated options where applicable. If an option "
+                                        "itself contains commas, surround the option starting with the %s"
+                                        "character and ending with the %s character." %
+                                        (settings.CHOICES_QUOTE, settings.CHOICES_UNQUOTE))
     required = forms.BooleanField(required=False, initial=True)
 
     default = forms.CharField(required=False, label='default value')
     placeholder_text = forms.CharField(required=False, label='placeholder_text')
     help_text = forms.CharField(required=False, label='help_text')
+
+    class Meta:
+        widgets = {
+            'label': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'choices': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'placeholder_text': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            }),
+            'help_text': forms.Textarea(attrs={
+                'class': 'materialize-textarea'
+            })
+        }

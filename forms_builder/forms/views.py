@@ -3,7 +3,10 @@ from __future__ import unicode_literals
 import json
 from csv import writer
 from django.conf import settings
+from mimetypes import guess_type
 from django.contrib.auth import REDIRECT_FIELD_NAME
+from django.core.files.storage import FileSystemStorage
+
 from django.core.urlresolvers import reverse
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render_to_response
@@ -12,6 +15,8 @@ from django.utils.http import urlquote
 from django.views.generic.base import TemplateView
 from email_extras.utils import send_mail_template
 from io import BytesIO, StringIO
+from os.path import join
+
 from forms_builder.forms.settings import CSV_DELIMITER, UPLOAD_ROOT
 from forms_builder.forms.forms import FormForForm, EntriesForm
 from forms_builder.forms.models import Form, Field, FormEntry, FieldEntry
@@ -26,35 +31,19 @@ from django.shortcuts import render, redirect
 from django.utils.http import is_safe_url
 from forms_builder.forms.utils import now, slugify
 
-
 class FormDetail(TemplateView):
     template_name = "forms/form_detail.html"
 
     def get_context_data(self, **kwargs):
         context = super(FormDetail, self).get_context_data(**kwargs)
-        print("context is")
-        print(context)
-        print(context["view"])
-        print(self.request.user)
         published = Form.objects.published(for_user=self.request.user)
-        print("published is")
-        print(published)
         context["form"] = get_object_or_404(published, slug=kwargs["slug"])
         return context
 
     def get(self, request, *args, **kwargs):
-        print(args, kwargs)
         context = self.get_context_data(**kwargs)
-        print("context")
-        print(context)
         login_required = context["form"].login_required
-        # print("login reqd ")
-        # print(login_required)
         if login_required and not request.user.is_authenticated():
-            # path = urlquote(request.get_full_path())
-            # bits = (settings.LOGIN_URL, REDIRECT_FIELD_NAME, path)
-            # print(bits)
-            # return redirect("%s?%s=%s" % bits)
             temp = '/forms/login?next=/forms/' + context["slug"]
             return redirect(temp)
         return self.render_to_response(context)
@@ -62,7 +51,7 @@ class FormDetail(TemplateView):
     def post(self, request, *args, **kwargs):
         published = Form.objects.published(for_user=request.user)
         form = get_object_or_404(published, slug=kwargs["slug"])
-        form_for_form = FormForForm(form, RequestContext(request), request.POST or None, request.FILES or None)
+        form_for_form = FormForForm(request.user.username or "default",form, RequestContext(request), request.POST or None, request.FILES or None)
         if not form_for_form.is_valid():
             form_invalid.send(sender=request, form=form_for_form)
         else:
@@ -149,38 +138,25 @@ class LoginView(View):
 
     def get(self, request):
         self.next = request.GET.get('next', '')
-        print("*********************************************************************************************")
-        print(self.next)
         if request.user.is_authenticated():  # removed .is_superuser
-            print("0000000000000000000000000000000000000000000")
             return redirect(self.next)
         args = dict(form=LoginForm(None), next=self.next)
-        print(args["next"])
         return render(request, self.template_name, args)
 
     def post(self, request):
         redirect_to = request.POST.get('next')
-        print(redirect_to)
-        print('lasdjfalsfdjkal;sfjaos;kldjf')
         form = LoginForm(request.POST)
         if form.is_valid():
             username = form.cleaned_data.get('username')
             password = form.cleaned_data.get('password')
             server = form.cleaned_data.get('login_server')
             user = auth.authenticate(username=username, password=password, server=server, port=self.port)
-            print(user)
             if user is not None:
-                print("uesr is not none")
-                print(request.get_host())
                 if is_safe_url(url=redirect_to, host=request.get_host()):
                     auth.login(request=request, user=user)
-                    print("*******----------------------------------------------------------------------------------")
-                    print(redirect_to)
                     return redirect(redirect_to)
                 else:
-                    print("in else")
                     args = dict(form=LoginForm(None), next=redirect_to)
-                    print(args["next"])
                     return render(request, self.template_name, args)
             else:
                 form.add_error(None, 'No user exists for given credentials.')
@@ -198,10 +174,7 @@ class CreateView(View):
 
     def get(self, request):
         self.next = request.GET.get('next', '')
-        print("*********************************************************************************************")
-        print(self.next)
         if request.user.is_authenticated() and not request.user.is_superuser:
-            # print("0000000000000000000000000000000000000000000")
             context = {
                 "form": CreateForm(None)
             }
@@ -237,11 +210,8 @@ class CreateView(View):
             f.response = response
             f.send_email = False
             f.save()
-            # print(f.id)
             request.session['formid'] = f.id
             request.session['no_of_fields'] = no_of_fields
-            print("12312312312312323123123123132123")
-            print(f)
             return redirect('forms:createfield')
         else:
             return render(request, self.template_name, dict(form=form))
@@ -256,10 +226,7 @@ class CreateFieldView(View):
 
     def get(self, request):
         self.next = request.GET.get('next', '')
-        print("*********************************************************************************************")
-        print(self.next)
-        print(request.user)
-        if request.user.is_authenticated():  # and not request.user.is_superuser
+        if request.user.is_authenticated() or request.user.is_superuser:
 
             context = {
                 "no_of_fields": request.session["no_of_fields"]
@@ -273,20 +240,12 @@ class CreateFieldView(View):
 
             context["namelist"] = namelist
             context["argsdict"] = argsdict
-            print("user name not none")
-            print(context)
             return render(request, self.template_name, context)
         if not request.user.is_authenticated():
-            print("usr none")
             temp = '/forms/login?next=/forms/create'
             return redirect(temp)
-        print("chutiyapa")
-        # only two possiblites either auth. or not auth.
-        # args = dict(form=CreateForm(None))
-        # return render(request, self.template_name, args)
 
     def post(self, request):
-        # redirect_to = 'createfield.html'
         print(request.POST)
         form1 = CreateField(request.POST, prefix="1")
 
@@ -306,8 +265,6 @@ class CreateFieldView(View):
 
         context["namelist"] = namelist
         context["argsdict"] = argsdict
-        print("contect")
-        print(context)
         if booltmp is False:
             return render(request, self.template_name, context)
 
@@ -326,7 +283,6 @@ class CreateFieldView(View):
             f = Field()
             f.form = Form.objects.get(id=request.session["formid"])
             f.label = label
-            print(f.label)
             f.field_type = field_type
             f.required = required
             f.default = default
@@ -334,12 +290,11 @@ class CreateFieldView(View):
             f.help_text = help_text
             f.choices = choices
             f.save()
-            print("popopopopopopopopopopopopopopopopo")
 
         return redirect('forms:main')
 
 
-class TestView(View):
+class LogoutView(View):
     def get(self, request):
         auth.logout(request)
         return redirect('forms:main')
@@ -351,19 +306,17 @@ class MainView(View):
             context = {
                 "forms": Form.objects.filter(user=request.user),
             }
-            print(Form.objects.filter(user=request.user))
             template_name = 'forms/main.html'
             return render(request, template_name, context)
         else:
             temp = '/forms/login?next=/forms'
             return redirect(temp)
-            # return render(request,'forms/login.html',context)
 
 
 class ExportCsvView(View):
     def get(self, request, formid):
 
-        export = False
+        export = True
         if request.user.is_authenticated():
             form = get_object_or_404(Form, id=formid)
 
@@ -371,9 +324,7 @@ class ExportCsvView(View):
                 post = request.POST or None
                 args = form, request, FormEntry, FieldEntry, post
                 entries_form = EntriesForm(*args)
-                print(entries_form)
                 submitted = entries_form.is_valid() or export
-                print(submitted)
                 if submitted:
                     response = HttpResponse(content_type="text/csv")
                     fname = "%s-%s.csv" % (form.slug, slugify(now().ctime()))
@@ -396,9 +347,37 @@ class ExportCsvView(View):
                     response.write(data)
                     return response
                 else:
-                    return HttpResponse("hasdsdhsdh")
+                    return HttpResponse(status=204)
             else:
-                return HttpResponse("hasdsdhsdh")
+                return HttpResponse(status=204)
         else:
-            return HttpResponse("sdgsdsdgsdg")
-            # have to see for not returnign and doing anything
+            return HttpResponse(status=204)
+
+
+
+fs = FileSystemStorage(location=UPLOAD_ROOT)
+
+class DownloadFileView(View):
+    def get(self, request, field_entry_id):
+        if request.user.is_authenticated():
+            model = FieldEntry
+            field_entry = get_object_or_404(model, id=field_entry_id)
+            if field_entry.entry.form.user == request.user or request.user.is_superuser or request.user.is_staff:
+                path = join(fs.location, field_entry.value)
+                response = HttpResponse(content_type=guess_type(path)[0])
+                f = open(path, "r+b")
+                response["Content-Disposition"] = "attachment; filename=%s" % f.name
+                response.write(f.read())
+                f.close()
+                return response
+            else:
+                return HttpResponse("You are not allowed to Download this file")
+        else:
+            return redirect('/forms/login?'+ '/forms/file/'+field_entry_id)
+
+
+class DeleteView(View):
+    def get(self,request,slug):
+        form = get_object_or_404(Form,slug=slug)
+        form.delete()
+        return redirect("forms:main")

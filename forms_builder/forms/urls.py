@@ -12,7 +12,9 @@ urlpatterns = [
     url(r'^create/$', views.CreateView.as_view(), name='create'),
     url(r'^(?P<formid>.*)/exportcsv/$', views.ExportCsvView.as_view(), name='exportcsv'),
     url(r'^createfield/$', views.CreateFieldView.as_view(), name='createfield'),
-    url(r'^test/$', views.TestView.as_view(), name='test'),
+    url(r'^logout/$', views.LogoutView.as_view(), name='logout'),
+    url(r'^file/(?P<field_entry_id>.*)/$', views.DownloadFileView.as_view(), name='downloadfile'),
     url(r'(?P<slug>.*)/sent/$', views.form_sent, name="form_sent"),
     url(r'(?P<slug>.*)/$', views.form_detail, name="form_detail"),
+    url(r'(?P<slug>.*)/delete$', views.DeleteView.as_view(),name="delete")
 ]

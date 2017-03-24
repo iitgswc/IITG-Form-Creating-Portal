@@ -28,7 +28,6 @@ class FormManager(models.Manager):
     Only show published forms for non-staff users.
     """
     def published(self, for_user=None):
-        print("sadafsxfasdfasfasdfasdfasdfasfdasdfasfasdfsafdasfasfasfasdfasdfasdfasfasfadsfasfsdf")
         if for_user is not None and for_user.is_authenticated():
             return self.all()
         filters = [
@@ -36,10 +35,8 @@ class FormManager(models.Manager):
             Q(expiry_date__gte=now()) | Q(expiry_date__isnull=True),
             Q(status=STATUS_PUBLISHED),
         ]
-        print("checking filters")
         # if settings.USE_SITES:
         #     filters.append(Q(sites=Site.objects.get_current()))
-        print(self.filter(*filters))
         return self.filter(*filters)
 
 
@@ -120,19 +117,13 @@ class AbstractForm(models.Model):
         queryset's ``published`` method, and is passed to the
         ``render_built_form`` template tag.
         """
-        print("lksdfsjdlfa")
         if for_user is not None and for_user.is_staff:
-            print("directly out")
             return True
         status = self.status == STATUS_PUBLISHED
         publish_date = self.publish_date is None or self.publish_date <= now()
         expiry_date = self.expiry_date is None or self.expiry_date >= now()
         authenticated = for_user is not None and for_user.is_authenticated()
-        print("in models.py")
-        print(authenticated)
         login_required = (not self.login_required or authenticated)
-        print("in models.py")
-        print(login_required)
         return status and publish_date and expiry_date and login_required
 
     def total_entries(self):
@@ -240,6 +231,7 @@ class AbstractFormEntry(models.Model):
     """
 
     entry_time = models.DateTimeField(_("Date/time"))
+    postedbyusername = models.CharField(_("webmail"),max_length=100,default="anonymous")
 
     class Meta:
         verbose_name = _("Form entry")
@@ -253,8 +245,7 @@ class AbstractFieldEntry(models.Model):
     """
 
     field_id = models.IntegerField()
-    value = models.CharField(max_length=settings.FIELD_MAX_LENGTH,
-            null=True)
+    value = models.CharField(max_length=settings.FIELD_MAX_LENGTH,null=True)
 
     class Meta:
         verbose_name = _("Form field entry")
