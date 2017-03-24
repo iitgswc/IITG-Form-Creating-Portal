@@ -1,0 +1,74 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="description" content="">
+    <link href="{% static 'forms/icons/material-icons.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+            crossorigin="anonymous"></script>
+    <title>Create Field</title>
+
+</head>
+<body>
+<header>
+    <nav>
+        <div class="container-fluid" style="background-color:#E57373;">
+            <div>
+                <div class="col-xs-4"><h1>Form Booking Portal</h1></div>
+                <div class="col-xs-offset-6 col-xs-2"><a href="{% url 'forms:test' %}" class="right"><h2>Logout</h2></a>
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+<main>
+    <div class="container">
+        <h2>Create Fields</h2>
+        <div>
+            <ul>
+                {% for error in form.non_field_errors %}
+                    <li class="red-text">
+                        <u>{{ error }}</u>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div>
+                {% for value in argsdict.values %}
+                    <div>
+                        <h3>Enter the details for field{{ forloop.counter }}</h3>
+                    </div>
+                    <div class="container panel panel-default" style="background-color: #cccccc">
+                        {{ value.as_p }}
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="row">
+                <div class="col-xs-offset-4">
+                    <button class='btn btn-large btn-info' type='submit' name='btn_login' style="width: 34%">
+                        Finalise The Fields
+                    </button>
+                </div>
+            </div>
+        </form>
+    <br>
+    <br>
+    <br>
+    </div>
+</main>
+<footer></footer>
+
+</body>
+</html>

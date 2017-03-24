@@ -1,0 +1,24 @@
+<!doctype html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ form.title }}</title>
+    <style>
+        body {font-family:sans-serif; padding:1em 2em;}
+        p {width:50em;}
+        label {display:block; float:left; width:10em;}
+        .errorlist {color:#f00;}
+    </style>
+</head>
+<body>
+    <h1>Forms</h1>
+    <p>Click <a href="create">here</a> to create a form.</p>
+    {% for form in forms %}
+        {{ form }}
+        {{ form.get_absolute_url }}
+        <p><a href="{{ form.get_absolute_url }}">{{ form.title }}</a></p>
+        <a href="{{form.id}}/exportcsv"> to download csv</a>
+    {% empty %}
+    <p>No forms created.</p>
+    {% endfor %}
+</body>
+</html>
